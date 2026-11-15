@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { useLayoutEffect, useRef, useState, type MouseEvent } from "react";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { Lock, WifiOff, RotateCw, ArrowRight } from "lucide-react";
 import { TurnstileGate } from "./TurnstileGate";
 import { RealtimeSessionPrompt } from "./RealtimeSessionPrompt";
@@ -62,6 +62,38 @@ export function AppShell() {
     new URLSearchParams(search).get("view") === "theme-manage" ||
     (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "theme-manage");
   const isHomeDashboard = normalizedPath === "/" && !isThemeManage;
+  const pendingHomeScrollRef = useRef(false);
+
+  // 从别的页面点站点名回首页时，hash 路由不会把滚动位置归零；等新页面挂好后再回到顶部。
+  useLayoutEffect(() => {
+    if (!pendingHomeScrollRef.current) return;
+    pendingHomeScrollRef.current = false;
+    window.scrollTo({ top: 0, left: 0 });
+  }, [pathname, search]);
+
+  const handleBrandClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    // 带修饰键 / 非左键的点击（新标签页打开等）交给浏览器和 <Link> 自己处理
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    if (!isHomeDashboard) {
+      pendingHomeScrollRef.current = true;
+      return;
+    }
+    // 已经在首页：路由不会变，改成滚回顶部，链接始终有反馈
+    event.preventDefault();
+    const reduceMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+  };
   const canHydrateHome =
     isHomeDashboard &&
     !isCheckingAccess &&
@@ -79,12 +111,17 @@ export function AppShell() {
       {/* SAO 风格顶部导航 Bar 框架 */}
       <header className="mao-top-nav-bar">
         <div className="mx-auto flex h-14 w-full max-w-430 items-center justify-between px-3 sm:px-5 md:px-6 lg:px-8">
-          <div className="mao-nav-brand-left flex items-center gap-2.5">
+          {/* 图标 + 站点名整块是回首页的链接：任何页面都能点，首页内再点则滚回顶部 */}
+          <Link
+            to="/"
+            className="mao-nav-brand-left flex items-center gap-2.5"
+            onClick={handleBrandClick}
+          >
             <SiteLogo />
             <span className="mao-nav-title" title={siteName}>
               {siteName}
             </span>
-          </div>
+          </Link>
           <div className="flex items-center gap-2 min-w-9" />
         </div>
       </header>

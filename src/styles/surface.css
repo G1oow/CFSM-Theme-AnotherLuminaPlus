@@ -255,10 +255,12 @@
   height: 36px;
 }
 
+/* 快捷栏的展开 / 收起只动 transform 与 opacity（合成层上跑，不触发布局，移动端也稳）：
+   展开时像从箭头按钮后面滑出来，收起时同样滑回去。之前补间的是 max-width（0 → 600px 的钳制值），
+   实际内容只有一两百像素，前半段画面几乎没变化，看起来就像先卡一下再「啪」地弹开。 */
 .floating-controls-actions {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%) translateX(0) scale(1);
   right: calc(100% + 8px);
   display: inline-flex;
   width: max-content;
@@ -267,11 +269,14 @@
   gap: 8px;
   overflow: hidden;
   opacity: 1;
+  transform: translateY(-50%) translateX(0) scale(1);
   transform-origin: right center;
+  visibility: visible;
+  /* 展开：偏慢、先快后缓，滑到位时正好淡入完成 */
   transition:
-    max-width 220ms cubic-bezier(0.32, 0.72, 0, 1),
-    opacity 160ms ease,
-    transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
 }
 
 .floating-controls-actions .control-button,
@@ -325,10 +330,34 @@
 }
 
 .floating-controls.is-collapsed .floating-controls-actions {
-  max-width: 0;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-50%) translateX(18px) scale(0.96);
+  transform: translateY(-50%) translateX(14px) scale(0.94);
+  /* 收起比展开快半拍：干脆地滑回按钮后面，等淡出结束再彻底隐藏，不留一块看不见的热区 */
+  visibility: hidden;
+  transition:
+    opacity 160ms ease-in,
+    transform 200ms cubic-bezier(0.4, 0, 0.8, 1),
+    visibility 0s linear 200ms;
+}
+
+/* 箭头本身也跟着转 180°：收 / 放时不再是图标「啪」地一换，而是和快捷栏一起转过去 */
+.floating-controls-trigger-icon {
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.8, 1);
+}
+
+.floating-controls-trigger[aria-expanded="true"] .floating-controls-trigger-icon {
+  transform: rotate(180deg);
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-controls-actions,
+  .floating-controls.is-collapsed .floating-controls-actions,
+  .floating-controls-trigger-icon,
+  .floating-controls-trigger[aria-expanded="true"] .floating-controls-trigger-icon {
+    transition: none;
+  }
 }
 
 .floating-controls-inner > .metric-color-picker,
@@ -1696,6 +1725,7 @@
 
 .instance-panel-headings {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 5px;
 }
@@ -1729,6 +1759,7 @@
 /* 标题 + 紧随其后的内联控件（如服务器切换器）同一行居中对齐 */
 .instance-panel-title-row {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 6px;
 }
@@ -1743,6 +1774,7 @@
 
 .instance-panel-title {
   margin: 0;
+  min-width: 0;
   color: var(--text-primary);
   font-size: 15px;
   font-weight: 640;
@@ -1788,27 +1820,36 @@
   }
 }
 
-/* 详情页标题旁的快速切换服务器下拉 */
+/* 详情页标题里的快速切换服务器下拉：国旗 + 服务器名 + 箭头整块都是触发器，
+   默认看不出按钮，悬停 / 展开时才浮出一层底色。 */
 .instance-switcher {
   position: relative;
   display: inline-flex;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.instance-switcher-trigger,
+.instance-switcher-static {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .instance-switcher-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* 紧凑、轻量：默认透明 ghost，只在 hover/展开时显底，避免和标题文字挤在一起突兀 */
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 7px;
+  /* 负外边距把内边距吃回去：文字仍与面板内容左缘对齐，只有鼠标悬停时才看出这一整块 */
+  margin: -3px -6px;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 10px;
   background: transparent;
-  color: var(--text-tertiary);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+  transition: background 160ms ease;
 }
 
 /* 图标块级居中，消除 svg 行内基线带来的偏移 */
@@ -1816,11 +1857,30 @@
   display: block;
 }
 
+/* 悬停 / 展开的高亮和旁边图表标题行的按钮（.instance-toggle-button）一致：只铺一层 --hover-bg、
+   不描边。聚焦框也交给全局的 :focus-visible，别自成一套。 */
 .instance-switcher-trigger:hover,
 .instance-switcher-trigger[aria-expanded="true"] {
-  color: var(--text-primary);
-  border-color: var(--border);
   background: var(--hover-bg);
+}
+
+/* 服务器名过长时单行省略，不把标题区撑出面板 */
+.instance-switcher-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.instance-switcher-caret {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: color 160ms ease;
+}
+
+.instance-switcher-trigger:hover .instance-switcher-caret,
+.instance-switcher-trigger[aria-expanded="true"] .instance-switcher-caret {
+  color: var(--text-primary);
 }
 
 /* 弹出菜单共享骨架:实例切换器与首页排序控件(home.css 的 .home-sort-*)是同一套 panel/item
@@ -1840,8 +1900,8 @@
 }
 
 .instance-switcher-panel {
-  /* 触发按钮现在紧贴标题（靠左），浮层从按钮左缘向右展开 */
-  left: 0;
+  /* 触发器带 6px 内边距，浮层与悬停时浮出的那一块左缘对齐 */
+  left: -6px;
   min-width: 200px;
   /* 移动端不超出视口宽度 */
   max-width: min(280px, calc(100vw - 32px));
