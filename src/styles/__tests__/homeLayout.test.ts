@@ -81,6 +81,15 @@ describe("home responsive layout contracts", () => {
     expect(homeSource).toContain("{homeReady && <FloatingControls");
   });
 
+  it("keeps the header brand a link home in every page", () => {
+    expect(appShellSource).toMatch(/<Link[\s\S]{0,120}to="\/"[\s\S]{0,120}mao-nav-brand-left/);
+    expect(appShellSource).toContain("<SiteLogo />");
+    expect(appShellSource).toContain("pendingHomeScrollRef");
+    expect(appShellSource).toContain("window.scrollTo({ top: 0");
+    expect(appShellSource).toContain("prefers-reduced-motion: reduce");
+    expect(homeCss).toContain(".mao-nav-brand-left:hover");
+  });
+
   it("keeps access and initial home hydration behind one shell-owned spinner", () => {
     expect(appShellSource).toContain("useNodeStoreStatus(canHydrateHome)");
     expect(appShellSource).toContain("isCheckingAccess || isCheckingHomeData");
