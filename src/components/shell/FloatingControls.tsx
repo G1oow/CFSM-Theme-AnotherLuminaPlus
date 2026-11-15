@@ -3,7 +3,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ChevronLeft,
-  ChevronRight,
   Ellipsis,
   Eye,
   EyeOff,
@@ -133,7 +132,6 @@ export function FloatingControls({
   const showSyncWarning = failureStreak >= 2;
   const showBack = inSideColumn && Boolean(backTo);
   const hiddenTabIndex = collapsed ? -1 : undefined;
-  const ToggleIcon = collapsed ? ChevronLeft : ChevronRight;
   const currentAppearance = APPEARANCE_META[appearance] ?? APPEARANCE_META.system;
 
   const cycleAppearance = () => {
@@ -460,7 +458,9 @@ export function FloatingControls({
               onClick={toggleControls}
               title={collapsed ? t("展开快捷按钮") : t("收起快捷按钮")}
             >
-              <ToggleIcon size={16} />
+              {/* 只用一枚左箭头（箭头指向快捷栏展开的方向）：展开时由 CSS 转 180° 变成右箭头，
+                  和快捷栏的收放同步，不再是瞬间换图标 */}
+              <ChevronLeft size={16} className="floating-controls-trigger-icon" aria-hidden />
               {showSyncWarning && collapsed && (
                 <span className="floating-controls-warning-dot" aria-hidden />
               )}
