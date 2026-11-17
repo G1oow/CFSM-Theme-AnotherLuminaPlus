@@ -23,6 +23,8 @@ interface CanvasStripProps {
     width: number,
     height: number,
     interaction: CanvasStripInteraction,
+    /** 画柱状图时按它把坐标取整到设备像素，否则柱边会跨两列渲染成半透明（见 snapBarRect）。 */
+    dpr: number,
   ) => void;
   getHoverIndex?: (offsetX: number, width: number) => number | null;
   onHoverIndex?: (index: number | null) => void;
@@ -50,7 +52,10 @@ function normalizeWidth(width: number) {
 // 所以统一按「可画区域」（两端各退一个设备像素）换算宽度与坐标。
 function resolveDrawArea(width: number, dpr: number, pixelWidth: number) {
   const edgeInset = Math.min(width / 2, 1 / dpr);
-  return { edgeInset, drawWidth: Math.max(0, Math.min(width, pixelWidth / dpr) - edgeInset * 2) };
+  // 宽度按位图算（整数设备像素），不是 CSS 宽度：CSS 宽度常带小数，减掉两端各一个设备像素后
+  // 右边界还落在半像素上，最后一根柱子就会被裁剪线削掉那一列 —— 只差百分之几的透明度，
+  // 但边缘因此又不硬了。按位图算，两端留白加起来正好等于位图宽度。
+  return { edgeInset, drawWidth: Math.max(0, pixelWidth / dpr - edgeInset * 2) };
 }
 
 function subscribeToWidth(element: HTMLElement, listener: WidthListener) {
@@ -530,11 +535,12 @@ export function CanvasStrip({
     // draw 收到的是可画区域的宽度、坐标也从它左上角起算：柱子按这个宽度均分，
     // 两端第一格 / 最后一格的边就不会再压在裁剪线上被削掉。
     ctx.translate(edgeInset, 0);
-    draw(ctx, drawWidth, height, interaction);
+    draw(ctx, drawWidth, height, interaction, dpr);
     ctx.restore();
     // 兜底：两端那一列设备像素保持透明（裁剪边正好压在格边上时会有极淡的一丝渗出去）。
+    // 右边界按位图宽度算，否则 CSS 宽度的零头会把最后一根柱子擦掉百分之几的一列。
     ctx.clearRect(0, 0, edgeInset, height);
-    ctx.clearRect(width - edgeInset, 0, edgeInset, height);
+    ctx.clearRect(pixelWidth / dpr - edgeInset, 0, edgeInset, height);
   }, [dpr, draw, drawWidth, edgeInset, height, interaction, redrawKey, visible, width]);
 
   const clearTouchHoldTimer = () => {
