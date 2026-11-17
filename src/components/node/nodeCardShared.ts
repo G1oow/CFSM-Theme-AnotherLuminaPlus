@@ -112,21 +112,14 @@ function barGapCss(count: number) {
   return count > 48 ? 1 : 2;
 }
 
-/**
- * 一排柱子的几何，全部以**设备像素**（整数）为单位。
- *
- * 早先是「按 CSS 宽度均分，再把每根柱子的左右边界各自取整」：柱宽通常是分数（176px 分 20 根 → 5.6px），
- * 逐根取整后相邻柱宽在 5/6 之间跳、间距在 2/3 之间跳，整排看上去就是歪七八扭、间隔不匀。
- * 现在反过来：先定整数间距（全排恒定），再把剩下的宽度按整数均分 —— 柱宽只可能是 `barWidth` 或
- * `barWidth + 1`，多出来的那一个设备的像素用 Bresenham 均匀摊到整排，不会全挤在一端。
- */
+/** 柱宽与间距都按整设备像素固定；除不尽的余数留在两端，不放进某些柱子。 */
 export interface BarTrackGeometry {
   count: number;
   /** 柱间距，单位设备像素，整排恒定。 */
   gap: number;
   /** 基准柱宽，单位设备像素。 */
   barWidth: number;
-  /** 需要多分 1 个设备像素的柱子数量，按 index 均匀分布。 */
+  /** 整排未用掉的设备像素，左右各留一半。 */
   extra: number;
 }
 
@@ -140,14 +133,10 @@ export function getBarGeometry(width: number, count: number, dpr = 1): BarTrackG
   }
   const inner = Math.max(total, pixelWidth - gap * (total - 1));
   const barWidth = Math.floor(inner / total);
-  return { count: total, gap, barWidth, extra: inner - barWidth * total };
+  return { count: total, gap, barWidth, extra: Math.max(0, pixelWidth - (barWidth * total + gap * (total - 1))) };
 }
 
-/**
- * 第 `index` 根柱子落在哪：左边界由「前面所有柱子的实际宽度 + 间距」累加得出，天然落在整设备像素上，
- * 间距因此严格相等、边界不再跨两列渲染成半透明。返回值换算回 CSS 像素，供 canvas 在已按 dpr 缩放的
- * 坐标系里使用。
- */
+/** 柱子等宽、等距，余下设备像素居中留白；返回 CSS 像素供已按 dpr 缩放的 canvas 使用。 */
 export function snapBarRect(
   index: number,
   geometry: BarTrackGeometry,
@@ -155,11 +144,8 @@ export function snapBarRect(
 ): { x: number; width: number } {
   const { count, gap, barWidth, extra } = geometry;
   const slot = Math.min(Math.max(0, Math.floor(index)), count - 1);
-  // 前 n 根柱子里已经摊到几个「额外像素」。
-  const spread = (n: number) => Math.floor((n * extra) / count);
-  const left = slot * (barWidth + gap) + spread(slot);
-  const right = left + barWidth + (spread(slot + 1) - spread(slot));
-  return { x: left / dpr, width: (right - left) / dpr };
+  const left = Math.floor(extra / 2) + slot * (barWidth + gap);
+  return { x: left / dpr, width: barWidth / dpr };
 }
 
 /** 柱顶同样对齐设备像素：底边本来就落在整数上,顶边压在半像素时会糊成一条淡像素。 */

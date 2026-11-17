@@ -153,29 +153,26 @@ describe("snapBarRect", () => {
     const geometry = getBarGeometry(60, 20, 1);
     const last = snapBarRect(19, geometry, 1);
 
-    expect(snapBarRect(0, geometry, 1).x).toBe(0);
+    expect(snapBarRect(0, geometry, 1).x).toBe(Math.floor(geometry.extra / 2));
     expect(last.x + last.width).toBeLessThanOrEqual(60);
     expect(last.width).toBeGreaterThanOrEqual(1);
   });
 
-  // 柱宽只可能有两种取值，差 1 个设备像素；多出来的像素按 Bresenham 摊开，不会全挤在一端。
-  it("spreads the leftover device pixels evenly across the row", () => {
-    const count = 20;
-    const geometry = getBarGeometry(175.95, count, 1);
-    const widths = Array.from(
-      { length: count },
-      (_, index) => Math.round(snapBarRect(index, geometry, 1).width),
-    );
-    const widened = widths
-      .map((width, index) => ({ width, index }))
-      .filter(({ width }) => width === geometry.barWidth + 1)
-      .map(({ index }) => index);
-
-    expect(new Set(widths).size).toBeLessThanOrEqual(2);
-    expect(widened).toHaveLength(geometry.extra);
-    const idealStep = Math.ceil(count / Math.max(1, geometry.extra));
-    for (let index = 1; index < widened.length; index += 1) {
-      expect(widened[index]! - widened[index - 1]!).toBeLessThanOrEqual(idealStep);
+  it("uses identical device-pixel widths at common desktop scaling factors", () => {
+    for (const dpr of [1, 1.1, 1.25, 1.5, 1.75, 2]) {
+      for (const [trackWidth, count] of [[188, 20], [176, 20], [188, 18], [120, 14]]) {
+        const geometry = getBarGeometry(trackWidth, count, dpr);
+        const rects = Array.from({ length: count }, (_, index) => snapBarRect(index, geometry, dpr));
+        const widths = rects.map(({ width }) => Math.round(width * dpr));
+        const gaps = rects.slice(1).map((rect, index) =>
+          Math.round((rect.x - rects[index]!.x - rects[index]!.width) * dpr),
+        );
+        expect(new Set(widths).size).toBe(1);
+        expect(new Set(gaps).size).toBe(1);
+        const left = Math.round(rects[0]!.x * dpr);
+        const right = Math.round(trackWidth * dpr - (rects[count - 1]!.x + rects[count - 1]!.width) * dpr);
+        expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+      }
     }
   });
 });
