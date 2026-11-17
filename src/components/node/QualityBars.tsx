@@ -58,7 +58,7 @@ export function QualityBars({
 
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, width: number, height: number, interaction: { hoverIndex: number | null; hoverProgress: number }, dpr: number) => {
-      const geometry = getBarGeometry(width, bars.length);
+      const geometry = getBarGeometry(width, bars.length, dpr);
 
       bars.forEach(({ heightFraction, alpha, tone }, index) => {
         const visual = healthBarInteractionModel(

@@ -1,6 +1,6 @@
 import { useCallback, type ReactNode } from "react";
 import { CanvasStrip, fillRoundedRect, safeCanvasColor } from "./CanvasStrip";
-import { snapBarRect } from "./nodeCardShared";
+import { getBarGeometry, snapBarRect } from "./nodeCardShared";
 
 const METRIC_SEGMENT_COUNT = 18;
 
@@ -39,12 +39,7 @@ export function MetricBar({
       dpr: number,
     ) => {
       const inactiveColor = safeCanvasColor("var(--progress-bg)");
-      const gap = 2;
-      const segmentWidth = Math.max(
-        1,
-        (width - gap * (METRIC_SEGMENT_COUNT - 1)) / METRIC_SEGMENT_COUNT,
-      );
-      const geometry = { gap, barWidth: segmentWidth };
+      const geometry = getBarGeometry(width, METRIC_SEGMENT_COUNT, dpr);
       const activePaint = safeCanvasColor(paint);
 
       for (let index = 0; index < METRIC_SEGMENT_COUNT; index += 1) {

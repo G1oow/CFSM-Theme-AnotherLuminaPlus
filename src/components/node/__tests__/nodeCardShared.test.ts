@@ -119,13 +119,12 @@ describe("formatCompactBillingCycle", () => {
 });
 
 describe("snapBarRect", () => {
-  // 175.95px 分 20 根 → 柱宽 6.9px，不取整时每条边都落在半像素上，边界列只有部分覆盖率。
+  // 175.95px 分 20 根：按 CSS 宽度均分得到 6.9px 这类分数，整排边界都会压在半个像素上。
   it("lands both edges of every bar on whole device pixels", () => {
-    const geometry = getBarGeometry(175.95, 20);
-    // 除以 dpr 会留下 1e-14 级的浮点尾数，栅格化看不出来，断言给个容差即可。
     const isWhole = (value: number) => Math.abs(value - Math.round(value)) < 1e-9;
 
     for (const dpr of [1, 1.25, 2]) {
+      const geometry = getBarGeometry(175.95, 20, dpr);
       for (let index = 0; index < 20; index += 1) {
         const { x, width } = snapBarRect(index, geometry, dpr);
         expect(isWhole(x * dpr)).toBe(true);
@@ -134,8 +133,24 @@ describe("snapBarRect", () => {
     }
   });
 
+  // 之前的实现逐根取整，间距在 2/3 个设备像素之间跳，一整排看着就是间隔不匀。
+  it("keeps every gap between bars exactly the same", () => {
+    for (const dpr of [1, 1.25, 2]) {
+      for (const count of [14, 18, 20]) {
+        const geometry = getBarGeometry(176.4, count, dpr);
+        for (let index = 1; index < count; index += 1) {
+          const previous = snapBarRect(index - 1, geometry, dpr);
+          const current = snapBarRect(index, geometry, dpr);
+          expect(Math.round((current.x - (previous.x + previous.width)) * dpr)).toBe(
+            geometry.gap,
+          );
+        }
+      }
+    }
+  });
+
   it("keeps the row inside the track and every bar at least one device pixel wide", () => {
-    const geometry = getBarGeometry(60, 20);
+    const geometry = getBarGeometry(60, 20, 1);
     const last = snapBarRect(19, geometry, 1);
 
     expect(snapBarRect(0, geometry, 1).x).toBe(0);
@@ -143,14 +158,24 @@ describe("snapBarRect", () => {
     expect(last.width).toBeGreaterThanOrEqual(1);
   });
 
-  it("keeps each gap within one device pixel of the requested gap", () => {
-    const geometry = getBarGeometry(175.95, 20);
+  // 柱宽只可能有两种取值，差 1 个设备像素；多出来的像素按 Bresenham 摊开，不会全挤在一端。
+  it("spreads the leftover device pixels evenly across the row", () => {
+    const count = 20;
+    const geometry = getBarGeometry(175.95, count, 1);
+    const widths = Array.from(
+      { length: count },
+      (_, index) => Math.round(snapBarRect(index, geometry, 1).width),
+    );
+    const widened = widths
+      .map((width, index) => ({ width, index }))
+      .filter(({ width }) => width === geometry.barWidth + 1)
+      .map(({ index }) => index);
 
-    for (let index = 1; index < 20; index += 1) {
-      const previous = snapBarRect(index - 1, geometry, 1);
-      const current = snapBarRect(index, geometry, 1);
-      const gap = current.x - (previous.x + previous.width);
-      expect(Math.abs(gap - geometry.gap)).toBeLessThanOrEqual(1);
+    expect(new Set(widths).size).toBeLessThanOrEqual(2);
+    expect(widened).toHaveLength(geometry.extra);
+    const idealStep = Math.ceil(count / Math.max(1, geometry.extra));
+    for (let index = 1; index < widened.length; index += 1) {
+      expect(widened[index]! - widened[index - 1]!).toBeLessThanOrEqual(idealStep);
     }
   });
 });

@@ -14,7 +14,13 @@ import { LatencyBars } from "./LatencyBars";
 import { HealthBucketTooltip } from "./HealthBucketTooltip";
 import { PingSparkline } from "./PingSparkline";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
-import { formatOsLabel, joinTagTitle, nodeDetailLinkLabels } from "./nodeCardShared";
+import {
+  formatOsLabel,
+  getBarGeometry,
+  joinTagTitle,
+  nodeDetailLinkLabels,
+  snapBarRect,
+} from "./nodeCardShared";
 import { formatHealthBucketTooltip } from "./pingBucketText";
 import type { PingOverviewTaskLoadState } from "@/types/cfsm";
 import { HOMEPAGE_PING_BUCKET_COUNT } from "@/hooks/usePingOverview";
@@ -115,13 +121,19 @@ function ListGauge({
 }) {
   const activeSegments = clamp01(fraction) * GAUGE_SEGMENTS;
   const draw = useCallback(
-    (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    (
+      ctx: CanvasRenderingContext2D,
+      width: number,
+      height: number,
+      _interaction: { hoverIndex: number | null; hoverProgress: number },
+      dpr: number,
+    ) => {
       const inactive = safeCanvasColor("var(--progress-bg)");
       const active = safeCanvasColor(paint);
-      const gap = 2;
-      const segWidth = Math.max(1, (width - gap * (GAUGE_SEGMENTS - 1)) / GAUGE_SEGMENTS);
+      // 与延迟 / 丢包柱同一套整像素布局：间距恒定、边界落在整设备像素上（见 getBarGeometry）。
+      const geometry = getBarGeometry(width, GAUGE_SEGMENTS, dpr);
       for (let i = 0; i < GAUGE_SEGMENTS; i += 1) {
-        const x = i * (segWidth + gap);
+        const { x, width: segWidth } = snapBarRect(i, geometry, dpr);
         const fill = Math.max(0, Math.min(1, activeSegments - i));
         ctx.globalAlpha = 0.55;
         ctx.fillStyle = inactive;
